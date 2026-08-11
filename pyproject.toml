@@ -1,0 +1,33 @@
+[project]
+name = "langchain-rag-tutorial"
+version = "0.2.0"
+description = "Hands-on RAG tutorial comparing OpenAI and HuggingFace embeddings"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "python-dotenv>=1.0.1",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-text-splitters>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-huggingface>=0.1.0",
+    "langchain-chroma>=0.1.2",
+    "chromadb>=0.5.0",
+    "sentence-transformers>=3.0.0",
+    "openai>=1.40.0",
+    "tiktoken>=0.7.0",
+    "requests>=2.32.0",
+]
+
+[project.scripts]
+rag-download-kb = "rag.cli:download_kb"
+rag-ingest = "rag.cli:ingest"
+rag-query = "rag.cli:query"
+rag-compare = "rag.cli:compare"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
