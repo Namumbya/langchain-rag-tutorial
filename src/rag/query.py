@@ -22,7 +22,8 @@ PROMPT = ChatPromptTemplate.from_messages(
             "system",
             "You answer questions using ONLY the provided context. "
             "If the context is insufficient, say you don't know. "
-            "Be concise and cite facts from the context when possible.",
+            "Be concise, and cite facts using the bracketed source numbers "
+            "from the context, e.g. [1], [2].",
         ),
         (
             "human",
@@ -55,7 +56,11 @@ def ask(question: str, settings: Settings | None = None) -> RagResult:
     db = open_vector_store(settings)
     # relevance_scores are normalized ~0..1 for cosine when embeddings are normalized
     raw = db.similarity_search_with_relevance_scores(question, k=settings.retrieval_k)
-    pairs = [(doc, float(score)) for doc, score in raw if float(score) >= settings.min_relevance_score]
+    pairs = [
+        (doc, float(score))
+        for doc, score in raw
+        if float(score) >= settings.min_relevance_score
+    ]
 
     if not pairs:
         return RagResult(

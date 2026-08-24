@@ -93,6 +93,14 @@ Edit `.env`:
 
 Optional LangSmith tracing vars are documented in `.env.example`.
 
+### 4. (Optional) Install dev dependencies
+
+For running tests, linting, and type checks:
+
+```bash
+pip install -e ".[dev]"
+```
+
 ---
 
 ## Run the tutorial (in order)
@@ -158,6 +166,22 @@ python -m rag.cli query "What is a vector database?" --provider openai
 
 ---
 
+## Testing & linting
+
+The test suite covers the pure/deterministic logic (config parsing, chunking,
+slugification, cosine similarity, prompt/context formatting) without needing
+API keys or downloaded models.
+
+```bash
+pip install -e ".[dev]"   # once, installs pytest/ruff/mypy
+
+pytest                     # run the test suite
+ruff check src tests       # lint
+mypy src                   # type check
+```
+
+---
+
 ## Project layout
 
 ```text
@@ -171,15 +195,21 @@ python -m rag.cli query "What is a vector database?" --provider openai
 ├── chroma_stores/        # generated indexes (gitignored)
 │   ├── huggingface/
 │   └── openai/
-└── src/
-    └── rag/
-        ├── config.py
-        ├── embeddings.py
-        ├── download_kb.py
-        ├── ingest.py
-        ├── query.py
-        ├── compare.py
-        └── cli.py
+├── src/
+│   └── rag/
+│       ├── config.py
+│       ├── embeddings.py
+│       ├── download_kb.py
+│       ├── ingest.py
+│       ├── query.py
+│       ├── compare.py
+│       └── cli.py
+└── tests/
+    ├── test_config.py
+    ├── test_compare.py
+    ├── test_download_kb.py
+    ├── test_ingest.py
+    └── test_query.py
 ```
 
 ---
@@ -208,6 +238,7 @@ For this tutorial, start with **HuggingFace** for ingest, then add OpenAI and ru
 - **Lightweight markdown loading** (no heavy document parsers)
 - **Attribution** for CC BY-SA Wikipedia content
 - **CLI entrypoints** instead of loose scripts at the repo root
+- **Unit tests** (`pytest`) for the deterministic logic, plus `ruff`/`mypy` configured in `pyproject.toml`
 
 ---
 

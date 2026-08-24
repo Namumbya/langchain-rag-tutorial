@@ -45,10 +45,27 @@ class Settings:
         return self.openai_api_key
 
 
+def _getenv_int(name: str, default: str) -> int:
+    raw = os.getenv(name, default)
+    try:
+        return int(raw)
+    except ValueError:
+        raise ValueError(f"Invalid {name}={raw!r} in .env: expected an integer.") from None
+
+
+def _getenv_float(name: str, default: str) -> float:
+    raw = os.getenv(name, default)
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(f"Invalid {name}={raw!r} in .env: expected a number.") from None
+
+
 def get_settings(
     embedding_provider: str | None = None,
 ) -> Settings:
-    provider = (embedding_provider or os.getenv("EMBEDDING_PROVIDER", "huggingface")).lower()
+    raw_provider = embedding_provider or os.getenv("EMBEDDING_PROVIDER") or "huggingface"
+    provider = raw_provider.lower()
     if provider not in {"openai", "huggingface"}:
         raise ValueError(
             f"Unsupported EMBEDDING_PROVIDER={provider!r}. Use 'openai' or 'huggingface'."
@@ -64,10 +81,10 @@ def get_settings(
         hf_embedding_model=os.getenv(
             "HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
         ),
-        chunk_size=int(os.getenv("CHUNK_SIZE", "800")),
-        chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "150")),
-        retrieval_k=int(os.getenv("RETRIEVAL_K", "4")),
-        min_relevance_score=float(os.getenv("MIN_RELEVANCE_SCORE", "0.3")),
+        chunk_size=_getenv_int("CHUNK_SIZE", "800"),
+        chunk_overlap=_getenv_int("CHUNK_OVERLAP", "150"),
+        retrieval_k=_getenv_int("RETRIEVAL_K", "4"),
+        min_relevance_score=_getenv_float("MIN_RELEVANCE_SCORE", "0.3"),
         data_dir=DATA_DIR,
         chroma_root=CHROMA_ROOT,
     )

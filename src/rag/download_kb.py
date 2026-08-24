@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import cast
 
 import requests
 
-from rag.config import DEFAULT_WIKI_TITLES, DATA_DIR
+from rag.config import DATA_DIR, DEFAULT_WIKI_TITLES
 
 API_URL = "https://en.wikipedia.org/w/api.php"
 USER_AGENT = "langchain-rag-tutorial/0.2 (educational; local RAG demo)"
@@ -36,7 +37,7 @@ def fetch_wikipedia_extract(title: str) -> tuple[str, str]:
     }
     response = requests.get(
         API_URL,
-        params=params,
+        params=cast(dict[str, str | int], params),
         headers={"User-Agent": USER_AGENT},
         timeout=60,
     )

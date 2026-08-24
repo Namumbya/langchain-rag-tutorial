@@ -76,6 +76,7 @@ def build_vector_store(settings: Settings | None = None) -> Chroma:
     )
 
     if settings.chroma_path.exists():
+        print(f"Rebuilding index: removing existing store at {settings.chroma_path}")
         shutil.rmtree(settings.chroma_path)
     settings.chroma_path.mkdir(parents=True, exist_ok=True)
 
