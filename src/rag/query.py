@@ -8,13 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from rag.config import Settings, get_settings
 from rag.embeddings import describe_embeddings
-from rag.ingest import open_vector_store
+from rag.retriever import RetrievedChunk, retrieve_chunks
 
 PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -37,15 +36,18 @@ PROMPT = ChatPromptTemplate.from_messages(
 class RagResult:
     answer: str
     sources: list[str]
-    scores: list[float]
+    scores: list[float | None]
     provider: str
 
 
-def _format_context(pairs: list[tuple[Document, float]]) -> str:
+def _format_context(chunks: list[RetrievedChunk]) -> str:
     parts = []
-    for i, (doc, score) in enumerate(pairs, start=1):
-        source = doc.metadata.get("source", "unknown")
-        parts.append(f"[{i}] (score={score:.3f}, source={source})\n{doc.page_content}")
+    for i, chunk in enumerate(chunks, start=1):
+        score_text = "n/a" if chunk.score is None else f"{chunk.score:.3f}"
+        parts.append(
+            f"[{i}] (score={score_text}, source={chunk.display_source})\n"
+            f"{chunk.document.page_content}"
+        )
     return "\n\n".join(parts)
 
 
@@ -53,16 +55,9 @@ def ask(question: str, settings: Settings | None = None) -> RagResult:
     settings = settings or get_settings()
     settings.require_openai()  # chat generation uses OpenAI
 
-    db = open_vector_store(settings)
-    # relevance_scores are normalized ~0..1 for cosine when embeddings are normalized
-    raw = db.similarity_search_with_relevance_scores(question, k=settings.retrieval_k)
-    pairs = [
-        (doc, float(score))
-        for doc, score in raw
-        if float(score) >= settings.min_relevance_score
-    ]
+    chunks = retrieve_chunks(question, settings)
 
-    if not pairs:
+    if not chunks:
         return RagResult(
             answer="Unable to find matching results in the knowledge base.",
             sources=[],
@@ -72,18 +67,18 @@ def ask(question: str, settings: Settings | None = None) -> RagResult:
 
     prompt = PROMPT.invoke(
         {
-            "context": _format_context(pairs),
+            "context": _format_context(chunks),
             "question": question,
         }
     )
     model = ChatOpenAI(model=settings.openai_chat_model, temperature=0)
     response = model.invoke(prompt)
 
-    sources = sorted({doc.metadata.get("source", "unknown") for doc, _ in pairs})
+    sources = sorted({chunk.display_source for chunk in chunks})
 
     return RagResult(
         answer=str(response.content),
         sources=sources,
-        scores=[score for _, score in pairs],
+        scores=[chunk.score for chunk in chunks],
         provider=describe_embeddings(settings),
     )

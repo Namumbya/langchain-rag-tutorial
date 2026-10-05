@@ -19,8 +19,10 @@ Knowledge base: **English Wikipedia** articles (open, CC BY-SA) about RAG and re
 | Embedding backends | `src/rag/embeddings.py` |
 | Download open docs | `src/rag/download_kb.py` |
 | Chunk + index | `src/rag/ingest.py` |
+| Retrieval layer | `src/rag/retriever.py` |
 | Ask questions | `src/rag/query.py` |
 | Compare providers | `src/rag/compare.py` |
+| Evaluate retrieval | `src/rag/evaluate.py` |
 | CLI | `python -m rag.cli ...` |
 
 ### RAG in one picture
@@ -85,6 +87,10 @@ Edit `.env`:
 | `OPENAI_EMBEDDING_MODEL` | Optional | default `text-embedding-3-small` |
 | `HF_EMBEDDING_MODEL` | Optional | default `sentence-transformers/all-MiniLM-L6-v2` |
 | `OPENAI_CHAT_MODEL` | Optional | default `gpt-4o-mini` |
+| `RETRIEVAL_SEARCH_TYPE` | Optional | `mmr` (default) or `similarity` |
+| `RETRIEVAL_K` | Optional | number of chunks returned |
+| `RETRIEVAL_FETCH_K` | Optional | candidate pool for MMR diversification |
+| `MIN_RELEVANCE_SCORE` | Optional | score threshold used for similarity mode |
 
 **Keys you need:**
 
@@ -164,13 +170,27 @@ python -m rag.cli query "What problem does RAG solve?" --provider huggingface
 python -m rag.cli query "What is a vector database?" --provider openai
 ```
 
+### Step F — Evaluate retrieval quality
+
+This runs a small built-in question set and reports retrieval hit rate for the
+current index. It helps compare providers or chunking strategies without relying
+on subjective eyeballing.
+
+```bash
+python -m rag.cli evaluate --provider huggingface
+```
+
+```bash
+python -m rag.cli evaluate --provider openai
+```
+
 ---
 
 ## Testing & linting
 
 The test suite covers the pure/deterministic logic (config parsing, chunking,
-slugification, cosine similarity, prompt/context formatting) without needing
-API keys or downloaded models.
+slugification, cosine similarity, prompt/context formatting, retriever display
+metadata, and evaluation accounting without needing API keys or downloaded models.
 
 ```bash
 pip install -e ".[dev]"   # once, installs pytest/ruff/mypy
@@ -201,14 +221,18 @@ mypy src                   # type check
 │       ├── embeddings.py
 │       ├── download_kb.py
 │       ├── ingest.py
+│       ├── retriever.py
 │       ├── query.py
 │       ├── compare.py
+│       ├── evaluate.py
 │       └── cli.py
 └── tests/
     ├── test_config.py
     ├── test_compare.py
     ├── test_download_kb.py
+    ├── test_evaluate.py
     ├── test_ingest.py
+    ├── test_retriever.py
     └── test_query.py
 ```
 
@@ -239,6 +263,7 @@ For this tutorial, start with **HuggingFace** for ingest, then add OpenAI and ru
 - **Attribution** for CC BY-SA Wikipedia content
 - **CLI entrypoints** instead of loose scripts at the repo root
 - **Unit tests** (`pytest`) for the deterministic logic, plus `ruff`/`mypy` configured in `pyproject.toml`
+- **Dedicated retrieval layer** so retrieval can be improved and evaluated independently of generation
 
 ---
 

@@ -28,6 +28,8 @@ class Settings:
     chunk_size: int
     chunk_overlap: int
     retrieval_k: int
+    retrieval_fetch_k: int
+    retrieval_search_type: str
     min_relevance_score: float
     data_dir: Path
     chroma_root: Path
@@ -71,6 +73,13 @@ def get_settings(
             f"Unsupported EMBEDDING_PROVIDER={provider!r}. Use 'openai' or 'huggingface'."
         )
 
+    search_type = (os.getenv("RETRIEVAL_SEARCH_TYPE", "mmr")).lower()
+    if search_type not in {"mmr", "similarity"}:
+        raise ValueError(
+            "Unsupported RETRIEVAL_SEARCH_TYPE="
+            f"{search_type!r}. Use 'mmr' or 'similarity'."
+        )
+
     return Settings(
         embedding_provider=provider,
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
@@ -84,6 +93,8 @@ def get_settings(
         chunk_size=_getenv_int("CHUNK_SIZE", "800"),
         chunk_overlap=_getenv_int("CHUNK_OVERLAP", "150"),
         retrieval_k=_getenv_int("RETRIEVAL_K", "4"),
+        retrieval_fetch_k=_getenv_int("RETRIEVAL_FETCH_K", "8"),
+        retrieval_search_type=search_type,
         min_relevance_score=_getenv_float("MIN_RELEVANCE_SCORE", "0.3"),
         data_dir=DATA_DIR,
         chroma_root=CHROMA_ROOT,

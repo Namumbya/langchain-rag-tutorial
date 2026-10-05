@@ -21,6 +21,15 @@ from rag.config import Settings, get_settings
 from rag.embeddings import describe_embeddings, get_embeddings
 
 
+def _extract_title(text: str, fallback: str) -> str:
+    """Use the first markdown heading as the document title when available."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped.removeprefix("# ").strip() or fallback
+    return fallback
+
+
 def load_documents(data_dir: Path) -> list[Document]:
     """Load local markdown files without heavy document-parser dependencies."""
     if not data_dir.exists():
@@ -38,7 +47,11 @@ def load_documents(data_dir: Path) -> list[Document]:
         documents.append(
             Document(
                 page_content=text,
-                metadata={"source": str(path), "filename": path.name},
+                metadata={
+                    "source": str(path),
+                    "filename": path.name,
+                    "title": _extract_title(text, path.stem),
+                },
             )
         )
 

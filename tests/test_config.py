@@ -51,3 +51,9 @@ def test_invalid_min_relevance_score_raises_friendly_error(monkeypatch):
     monkeypatch.setenv("MIN_RELEVANCE_SCORE", "not-a-float")
     with pytest.raises(ValueError, match="Invalid MIN_RELEVANCE_SCORE"):
         get_settings("huggingface")
+
+
+def test_invalid_retrieval_search_type_raises(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_SEARCH_TYPE", "weird")
+    with pytest.raises(ValueError, match="Unsupported RETRIEVAL_SEARCH_TYPE"):
+        get_settings("huggingface")

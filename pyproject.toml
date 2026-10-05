@@ -31,6 +31,7 @@ rag-download-kb = "rag.cli:download_kb"
 rag-ingest = "rag.cli:ingest"
 rag-query = "rag.cli:query"
 rag-compare = "rag.cli:compare"
+rag-evaluate = "rag.cli:evaluate"
 
 [build-system]
 requires = ["setuptools>=68"]

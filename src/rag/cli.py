@@ -8,6 +8,7 @@ import sys
 from rag.compare import run_comparison
 from rag.config import get_settings
 from rag.download_kb import download_knowledge_base
+from rag.evaluate import evaluate_retrieval
 from rag.ingest import build_vector_store
 from rag.query import ask
 
@@ -51,7 +52,8 @@ def query(argv: list[str] | None = None) -> None:
     settings = get_settings(args.provider)
     result = ask(args.question, settings)
     print(f"Provider: {result.provider}")
-    print(f"Scores:   {[round(s, 3) for s in result.scores]}")
+    scores_display = [None if s is None else round(s, 3) for s in result.scores]
+    print(f"Scores:   {scores_display}")
     print(f"Sources:  {result.sources}")
     print("-" * 40)
     print(result.answer)
@@ -71,6 +73,25 @@ def compare(argv: list[str] | None = None) -> None:
     run_comparison(query=args.query)
 
 
+def evaluate(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Run a small retrieval evaluation set against the current index"
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["openai", "huggingface"],
+        help="Which embedding index to evaluate",
+    )
+    args = parser.parse_args(argv)
+    settings = get_settings(args.provider)
+    result = evaluate_retrieval(settings)
+    print("-" * 40)
+    print(
+        f"retrieval hit@{settings.retrieval_k}: "
+        f"{result.hits_at_k}/{result.total} ({result.hit_rate:.0%})"
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
@@ -86,6 +107,7 @@ def main(argv: list[str] | None = None) -> None:
         "ingest": ingest,
         "query": query,
         "compare": compare,
+        "evaluate": evaluate,
     }
     if command not in commands:
         print(f"Unknown command: {command}")
