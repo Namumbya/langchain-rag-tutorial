@@ -1,4 +1,4 @@
-"""Retrieve relevant chunks and generate an answer with ChatOpenAI.
+"""Retrieve relevant chunks and generate an answer.
 
 This is classic 2-step RAG:
   question → embed → similarity search → stuff context into prompt → LLM
@@ -9,10 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 from rag.config import Settings, get_settings
 from rag.embeddings import describe_embeddings
+from rag.llm import describe_llm, get_chat_model
 from rag.retriever import RetrievedChunk, retrieve_chunks
 
 PROMPT = ChatPromptTemplate.from_messages(
@@ -22,7 +22,8 @@ PROMPT = ChatPromptTemplate.from_messages(
             "You answer questions using ONLY the provided context. "
             "If the context is insufficient, say you don't know. "
             "Be concise, and cite facts using the bracketed source numbers "
-            "from the context, e.g. [1], [2].",
+            "from the context, e.g. [1], [2]. Those numbers match the Sources "
+            "list printed after your answer.",
         ),
         (
             "human",
@@ -38,6 +39,7 @@ class RagResult:
     sources: list[str]
     scores: list[float | None]
     provider: str
+    llm: str
 
 
 def _format_context(chunks: list[RetrievedChunk]) -> str:
@@ -51,10 +53,13 @@ def _format_context(chunks: list[RetrievedChunk]) -> str:
     return "\n\n".join(parts)
 
 
+def _ordered_sources(chunks: list[RetrievedChunk]) -> list[str]:
+    """Keep citation numbers aligned with context order (no alpha-sort/dedupe)."""
+    return [f"[{i}] {chunk.display_source}" for i, chunk in enumerate(chunks, start=1)]
+
+
 def ask(question: str, settings: Settings | None = None) -> RagResult:
     settings = settings or get_settings()
-    settings.require_openai()  # chat generation uses OpenAI
-
     chunks = retrieve_chunks(question, settings)
 
     if not chunks:
@@ -63,6 +68,7 @@ def ask(question: str, settings: Settings | None = None) -> RagResult:
             sources=[],
             scores=[],
             provider=describe_embeddings(settings),
+            llm=describe_llm(settings),
         )
 
     prompt = PROMPT.invoke(
@@ -71,14 +77,13 @@ def ask(question: str, settings: Settings | None = None) -> RagResult:
             "question": question,
         }
     )
-    model = ChatOpenAI(model=settings.openai_chat_model, temperature=0)
+    model = get_chat_model(settings)
     response = model.invoke(prompt)
-
-    sources = sorted({chunk.display_source for chunk in chunks})
 
     return RagResult(
         answer=str(response.content),
-        sources=sources,
+        sources=_ordered_sources(chunks),
         scores=[chunk.score for chunk in chunks],
         provider=describe_embeddings(settings),
+        llm=describe_llm(settings),
     )

@@ -57,3 +57,15 @@ def test_invalid_retrieval_search_type_raises(monkeypatch):
     monkeypatch.setenv("RETRIEVAL_SEARCH_TYPE", "weird")
     with pytest.raises(ValueError, match="Unsupported RETRIEVAL_SEARCH_TYPE"):
         get_settings("huggingface")
+
+
+def test_llm_provider_defaults_to_openai(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    settings = get_settings("huggingface")
+    assert settings.llm_provider == "openai"
+
+
+def test_invalid_llm_provider_raises(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "claude-local")
+    with pytest.raises(ValueError, match="Unsupported LLM_PROVIDER"):
+        get_settings("huggingface")

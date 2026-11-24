@@ -18,13 +18,16 @@ load_dotenv(ROOT_DIR / ".env")
 
 @dataclass(frozen=True)
 class Settings:
-    """Runtime settings for ingest / query / compare."""
+    """Runtime settings for ingest / query / compare / evaluate."""
 
     embedding_provider: str
+    llm_provider: str
     openai_api_key: str | None
     openai_embedding_model: str
     openai_chat_model: str
     hf_embedding_model: str
+    ollama_chat_model: str
+    ollama_base_url: str
     chunk_size: int
     chunk_overlap: int
     retrieval_k: int
@@ -73,6 +76,12 @@ def get_settings(
             f"Unsupported EMBEDDING_PROVIDER={provider!r}. Use 'openai' or 'huggingface'."
         )
 
+    llm_provider = (os.getenv("LLM_PROVIDER") or "openai").lower()
+    if llm_provider not in {"openai", "ollama"}:
+        raise ValueError(
+            f"Unsupported LLM_PROVIDER={llm_provider!r}. Use 'openai' or 'ollama'."
+        )
+
     search_type = (os.getenv("RETRIEVAL_SEARCH_TYPE", "mmr")).lower()
     if search_type not in {"mmr", "similarity"}:
         raise ValueError(
@@ -82,6 +91,7 @@ def get_settings(
 
     return Settings(
         embedding_provider=provider,
+        llm_provider=llm_provider,
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_embedding_model=os.getenv(
             "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
@@ -90,6 +100,8 @@ def get_settings(
         hf_embedding_model=os.getenv(
             "HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
         ),
+        ollama_chat_model=os.getenv("OLLAMA_CHAT_MODEL", "llama3.2"),
+        ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         chunk_size=_getenv_int("CHUNK_SIZE", "800"),
         chunk_overlap=_getenv_int("CHUNK_OVERLAP", "150"),
         retrieval_k=_getenv_int("RETRIEVAL_K", "4"),

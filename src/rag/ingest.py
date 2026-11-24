@@ -4,8 +4,9 @@ Pipeline
 --------
 1. Load documents from data/knowledge_base/*.md
 2. Split into overlapping chunks (keeps context across boundaries)
-3. Embed each chunk with the selected provider
-4. Persist vectors under chroma_stores/<provider>/
+3. Prefix each chunk with its article title (helps retrieval)
+4. Embed each chunk with the selected provider
+5. Persist vectors under chroma_stores/<provider>/
 """
 
 from __future__ import annotations
@@ -71,7 +72,26 @@ def split_documents(
         length_function=len,
         add_start_index=True,
     )
-    return splitter.split_documents(documents)
+    chunks = splitter.split_documents(documents)
+    return [_with_title_header(chunk) for chunk in chunks]
+
+
+def _with_title_header(chunk: Document) -> Document:
+    """Prefix chunk text with the article title before embedding.
+
+    Mid-article chunks often never mention the page name. Adding the title
+    makes retrieval much more reliable for paraphrased questions.
+    """
+    title = str(chunk.metadata.get("title") or "").strip()
+    if not title:
+        return chunk
+    header = f"{title}\n\n"
+    if chunk.page_content.startswith(header) or chunk.page_content.startswith(f"# {title}"):
+        return chunk
+    return Document(
+        page_content=f"{header}{chunk.page_content}",
+        metadata=dict(chunk.metadata),
+    )
 
 
 def build_vector_store(settings: Settings | None = None) -> Chroma:

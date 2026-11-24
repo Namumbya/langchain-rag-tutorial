@@ -1,6 +1,6 @@
 from langchain_core.documents import Document
 
-from rag.query import _format_context
+from rag.query import _format_context, _ordered_sources
 from rag.retriever import RetrievedChunk
 
 
@@ -39,3 +39,22 @@ def test_format_context_defaults_missing_source_to_unknown():
 
     assert "score=n/a" in formatted
     assert "source=unknown" in formatted
+
+
+def test_ordered_sources_match_context_indices():
+    chunks = [
+        RetrievedChunk(
+            document=Document(page_content="a", metadata={}),
+            score=0.9,
+            display_source="Zebra (z.md)",
+        ),
+        RetrievedChunk(
+            document=Document(page_content="b", metadata={}),
+            score=0.8,
+            display_source="Apple (a.md)",
+        ),
+    ]
+
+    sources = _ordered_sources(chunks)
+
+    assert sources == ["[1] Zebra (z.md)", "[2] Apple (a.md)"]

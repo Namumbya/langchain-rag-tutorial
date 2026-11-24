@@ -1,12 +1,17 @@
-# LangChain RAG Tutorial (v0.2)
+# LangChain RAG Tutorial (v0.3)
 
-A small, modern **Retrieval-Augmented Generation (RAG)** project that teaches the full loop:
+A small **Retrieval-Augmented Generation (RAG)** project that teaches the full loop:
 
 **documents → chunks → embeddings → vector store → retrieve → LLM answer**
 
-You can switch between **OpenAI embeddings** (API) and **HuggingFace / sentence-transformers** (local) and compare them.
+You can compare:
+
+- **Embeddings:** OpenAI (API) vs HuggingFace / sentence-transformers (local)
+- **Answers:** OpenAI chat vs **Ollama** (local, no API key)
 
 Knowledge base: **English Wikipedia** articles (open, CC BY-SA) about RAG and related ML topics.
+
+This stays classic **2-step RAG** (retrieve, then generate). It is meant to teach plain RAG clearly — not agentic workflows.
 
 ---
 
@@ -17,11 +22,12 @@ Knowledge base: **English Wikipedia** articles (open, CC BY-SA) about RAG and re
 | Environment & secrets | `.env.example` → `.env` |
 | Settings / paths | `src/rag/config.py` |
 | Embedding backends | `src/rag/embeddings.py` |
+| Chat backends | `src/rag/llm.py` |
 | Download open docs | `src/rag/download_kb.py` |
 | Chunk + index | `src/rag/ingest.py` |
 | Retrieval layer | `src/rag/retriever.py` |
 | Ask questions | `src/rag/query.py` |
-| Compare providers | `src/rag/compare.py` |
+| Compare embeddings | `src/rag/compare.py` |
 | Evaluate retrieval | `src/rag/evaluate.py` |
 | CLI | `python -m rag.cli ...` |
 
@@ -30,23 +36,31 @@ Knowledge base: **English Wikipedia** articles (open, CC BY-SA) about RAG and re
 ```text
 ┌─────────────┐    ┌──────────┐    ┌────────────┐    ┌─────────────┐
 │  Markdown   │ →  │  Split   │ →  │  Embed     │ →  │   Chroma    │
-│  Wikipedia  │    │  chunks  │    │  vectors   │    │  vector DB  │
+│  Wikipedia  │    │ + title  │    │  vectors   │    │  vector DB  │
 └─────────────┘    └──────────┘    └────────────┘    └──────┬──────┘
                                                            │
      ┌────────────┐    ┌──────────┐    ┌────────────┐      │
      │   Answer   │ ←  │   LLM    │ ←  │  Prompt +  │ ←────┘
-     │            │    │ (OpenAI) │    │  top chunks│  similarity search
-     └────────────┘    └──────────┘    └────────────┘
+     │ + sources  │    │ OpenAI / │    │  top chunks│  MMR or similarity
+     └────────────┘    │  Ollama  │    └────────────┘
+                       └──────────┘
 ```
 
-Embeddings answer: *“which chunks mean something close to this question?”*  
-The LLM answers: *“given those chunks, what should I say?”*
+Current LangChain APIs used here: `langchain_chroma`, `langchain_text_splitters`,
+`langchain_openai` / `langchain_huggingface` / `langchain_ollama`, and `.invoke()`
+(not deprecated `.predict()`).
 
 ---
 
 ## Setup
 
-### 1. Create a virtual environment
+### Option A — uv (recommended)
+
+```bash
+uv sync --extra dev
+```
+
+### Option B — pip + venv
 
 ```bash
 python -m venv .venv
@@ -56,56 +70,38 @@ python -m venv .venv
 
 # macOS / Linux
 source .venv/bin/activate
+
+pip install -e ".[dev]"
 ```
 
-### 2. Install the package (editable)
+`requirements.txt` mirrors `pyproject.toml` for plain pip users. Prefer editable install from `pyproject.toml`.
 
-```bash
-pip install -e .
-```
-
-Or:
-
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-
-### 3. Configure environment variables
+### Configure environment
 
 ```bash
 copy .env.example .env   # Windows
 # cp .env.example .env   # macOS / Linux
 ```
 
-Edit `.env`:
-
 | Variable | Required? | Purpose |
 |----------|-----------|---------|
-| `OPENAI_API_KEY` | For OpenAI embeddings **and** for answering questions | https://platform.openai.com/api-keys |
+| `LLM_PROVIDER` | Optional (default `openai`) | `openai` or `ollama` |
+| `OPENAI_API_KEY` | For OpenAI embeddings **or** OpenAI answers | https://platform.openai.com/api-keys |
 | `EMBEDDING_PROVIDER` | Optional (default `huggingface`) | `huggingface` or `openai` |
-| `OPENAI_EMBEDDING_MODEL` | Optional | default `text-embedding-3-small` |
-| `HF_EMBEDDING_MODEL` | Optional | default `sentence-transformers/all-MiniLM-L6-v2` |
-| `OPENAI_CHAT_MODEL` | Optional | default `gpt-4o-mini` |
+| `OLLAMA_CHAT_MODEL` | Optional | default `llama3.2` |
+| `OLLAMA_BASE_URL` | Optional | default `http://localhost:11434` |
 | `RETRIEVAL_SEARCH_TYPE` | Optional | `mmr` (default) or `similarity` |
 | `RETRIEVAL_K` | Optional | number of chunks returned |
-| `RETRIEVAL_FETCH_K` | Optional | candidate pool for MMR diversification |
-| `MIN_RELEVANCE_SCORE` | Optional | score threshold used for similarity mode |
+| `RETRIEVAL_FETCH_K` | Optional | candidate pool for MMR |
+| `MIN_RELEVANCE_SCORE` | Optional | score threshold for similarity mode |
 
-**Keys you need:**
+**Fully free / local path**
 
-- **HuggingFace local embeddings:** no key. First ingest downloads the model weights.
-- **OpenAI embeddings or chat answers:** `OPENAI_API_KEY`.
+1. `EMBEDDING_PROVIDER=huggingface`
+2. `LLM_PROVIDER=ollama`
+3. Install [Ollama](https://ollama.com), then: `ollama pull llama3.2`
 
-Optional LangSmith tracing vars are documented in `.env.example`.
-
-### 4. (Optional) Install dev dependencies
-
-For running tests, linting, and type checks:
-
-```bash
-pip install -e ".[dev]"
-```
+No OpenAI key needed for that path.
 
 ---
 
@@ -117,33 +113,19 @@ pip install -e ".[dev]"
 python -m rag.cli download-kb
 ```
 
-This pulls curated Wikipedia pages (RAG, LLMs, embeddings, vector DBs, …) into `data/knowledge_base/` and writes `ATTRIBUTION.md` (CC BY-SA).
-
-Custom pages:
-
-```bash
-python -m rag.cli download-kb --titles "Chroma_(vector_database)" "LangChain"
-```
-
 ### Step B — Build a vector index (HuggingFace, free/local)
 
 ```bash
 python -m rag.cli ingest --provider huggingface
 ```
 
-Creates `chroma_stores/huggingface/`.
+Chunks are prefixed with the article title before embedding (helps paraphrased questions).
 
 ### Step C — (Optional) Build an OpenAI index for comparison
-
-Requires `OPENAI_API_KEY`:
 
 ```bash
 python -m rag.cli ingest --provider openai
 ```
-
-Creates `chroma_stores/openai/`.
-
-Each provider gets its **own** Chroma folder because vectors from different models are **not** interchangeable.
 
 ### Step D — Compare embeddings
 
@@ -151,30 +133,24 @@ Each provider gets its **own** Chroma folder because vectors from different mode
 python -m rag.cli compare --query "What is retrieval-augmented generation?"
 ```
 
-You will see:
-
-1. **Pairwise cosine similarity** inside each model’s space (related phrases score high; unrelated score low).
-2. **Retrieval previews** from each ingested store.
-
-Important lesson: do **not** cosine-compare an OpenAI vector to a HuggingFace vector. Different spaces. Compare rankings / retrieval quality instead.
+Do **not** cosine-compare an OpenAI vector to a HuggingFace vector. Different spaces. Compare rankings / hit rates instead.
 
 ### Step E — Ask a question
 
-Chat generation uses OpenAI (`OPENAI_API_KEY` required), even if retrieval used HuggingFace embeddings:
-
 ```bash
+# OpenAI answers (needs OPENAI_API_KEY)
+python -m rag.cli query "What problem does RAG solve?" --provider huggingface
+
+# Or fully local answers with Ollama
+# set LLM_PROVIDER=ollama in .env first
 python -m rag.cli query "What problem does RAG solve?" --provider huggingface
 ```
 
-```bash
-python -m rag.cli query "What is a vector database?" --provider openai
-```
+The CLI prints **numbered sources in the same order as the prompt context**, so `[1]` / `[2]` in the answer match the Sources list.
 
 ### Step F — Evaluate retrieval quality
 
-This runs a small built-in question set and reports retrieval hit rate for the
-current index. It helps compare providers or chunking strategies without relying
-on subjective eyeballing.
+Harder paraphrased questions + **hit@k** and **MRR**:
 
 ```bash
 python -m rag.cli evaluate --provider huggingface
@@ -184,21 +160,21 @@ python -m rag.cli evaluate --provider huggingface
 python -m rag.cli evaluate --provider openai
 ```
 
+Use this after changing chunking, embeddings, or retrieval settings.
+
 ---
 
-## Testing & linting
-
-The test suite covers the pure/deterministic logic (config parsing, chunking,
-slugification, cosine similarity, prompt/context formatting, retriever display
-metadata, and evaluation accounting without needing API keys or downloaded models.
+## Testing & CI
 
 ```bash
-pip install -e ".[dev]"   # once, installs pytest/ruff/mypy
+pip install -e ".[dev]"   # or: uv sync --extra dev
 
-pytest                     # run the test suite
-ruff check src tests       # lint
-mypy src                   # type check
+pytest
+ruff check src tests
+mypy src
 ```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the same checks on every push/PR to `main`.
 
 ---
 
@@ -206,83 +182,52 @@ mypy src                   # type check
 
 ```text
 .
-├── .env.example          # template for secrets / settings
-├── pyproject.toml        # package + dependencies
-├── requirements.txt      # pip-friendly mirror
+├── .env.example
+├── .github/workflows/ci.yml
+├── pyproject.toml
+├── requirements.txt
 ├── README.md
-├── data/
-│   └── knowledge_base/   # Wikipedia markdown (open license)
-├── chroma_stores/        # generated indexes (gitignored)
-│   ├── huggingface/
-│   └── openai/
-├── src/
-│   └── rag/
-│       ├── config.py
-│       ├── embeddings.py
-│       ├── download_kb.py
-│       ├── ingest.py
-│       ├── retriever.py
-│       ├── query.py
-│       ├── compare.py
-│       ├── evaluate.py
-│       └── cli.py
+├── data/knowledge_base/
+├── chroma_stores/          # generated (gitignored)
+├── src/rag/
+│   ├── config.py
+│   ├── embeddings.py
+│   ├── llm.py
+│   ├── download_kb.py
+│   ├── ingest.py
+│   ├── retriever.py
+│   ├── query.py
+│   ├── compare.py
+│   ├── evaluate.py
+│   └── cli.py
 └── tests/
-    ├── test_config.py
-    ├── test_compare.py
-    ├── test_download_kb.py
-    ├── test_evaluate.py
-    ├── test_ingest.py
-    ├── test_retriever.py
-    └── test_query.py
 ```
 
 ---
 
-## OpenAI vs HuggingFace embeddings
+## Intentionally out of scope (for now)
 
-| | OpenAI | HuggingFace (local) |
-|--|--------|---------------------|
-| Cost | Paid API | Free after download |
-| Privacy | Text sent to API | Stays on your machine |
-| Setup | `OPENAI_API_KEY` | Downloads model once |
-| Default model | `text-embedding-3-small` (1536-d) | `all-MiniLM-L6-v2` (384-d) |
-| Typical use | Strong baseline quality | Offline demos / private data |
+To keep this a clear RAG tutorial:
 
-For this tutorial, start with **HuggingFace** for ingest, then add OpenAI and run `compare`.
-
----
-
-## Standard practices used here
-
-- **Secrets in `.env`**, never committed (`.gitignore` includes `.env`)
-- **`.env.example`** documents required keys without real secrets
-- **Src layout** (`src/rag`) + editable install
-- **One Chroma path per embedding provider**
-- **Modern LangChain imports** (`langchain_chroma`, `langchain_text_splitters`, `invoke` not `predict`)
-- **Lightweight markdown loading** (no heavy document parsers)
-- **Attribution** for CC BY-SA Wikipedia content
-- **CLI entrypoints** instead of loose scripts at the repo root
-- **Unit tests** (`pytest`) for the deterministic logic, plus `ruff`/`mypy` configured in `pyproject.toml`
-- **Dedicated retrieval layer** so retrieval can be improved and evaluated independently of generation
+- No Streamlit UI yet
+- No hybrid BM25 search / re-ranker chapter yet
+- No agent-with-tools chapter (that belongs in a separate agent project)
 
 ---
 
 ## Troubleshooting
 
 **`OPENAI_API_KEY is missing`**  
-Copy `.env.example` → `.env` and set a real key. Needed for OpenAI embeddings and for `query`.
+Needed only when `LLM_PROVIDER=openai` or `EMBEDDING_PROVIDER=openai`. For free local answers, set `LLM_PROVIDER=ollama`.
 
-**`No knowledge base`**  
-Run `python -m rag.cli download-kb` first.
+**Ollama connection errors**  
+Confirm Ollama is running and the model is pulled: `ollama list`, `ollama pull llama3.2`.
 
-**`Missing vector store`**  
-Run `python -m rag.cli ingest --provider ...` for that provider.
+**`No knowledge base` / `Missing vector store`**  
+Run `download-kb`, then `ingest --provider ...`.
 
 **First HuggingFace ingest is slow**  
-Normal — `sentence-transformers` downloads model weights once.
-
-**Windows + Chroma / onnxruntime issues**  
-Install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if wheel builds fail, then reinstall deps.
+Normal — model weights download once.
 
 ---
 

@@ -51,10 +51,13 @@ def query(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     settings = get_settings(args.provider)
     result = ask(args.question, settings)
-    print(f"Provider: {result.provider}")
+    print(f"Embeddings: {result.provider}")
+    print(f"LLM:        {result.llm}")
     scores_display = [None if s is None else round(s, 3) for s in result.scores]
-    print(f"Scores:   {scores_display}")
-    print(f"Sources:  {result.sources}")
+    print(f"Scores:     {scores_display}")
+    print("Sources:")
+    for source in result.sources:
+        print(f"  {source}")
     print("-" * 40)
     print(result.answer)
 
@@ -90,13 +93,15 @@ def evaluate(argv: list[str] | None = None) -> None:
         f"retrieval hit@{settings.retrieval_k}: "
         f"{result.hits_at_k}/{result.total} ({result.hit_rate:.0%})"
     )
+    print(f"MRR: {result.mrr:.3f}")
 
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         print(
-            "Usage: python -m rag.cli <download-kb|ingest|query|compare> ...\n"
+            "Usage: python -m rag.cli "
+            "<download-kb|ingest|query|compare|evaluate> ...\n"
             "See README.md for the full learning path."
         )
         raise SystemExit(1)
